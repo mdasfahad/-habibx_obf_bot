@@ -10,7 +10,7 @@ from telegram.ext import (
 )
 
 # ----------------- CONFIGURATION -----------------
-BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"  # আপনার বট টোকেন দিন
+BOT_TOKEN = "8839587043:AAHLhKmyrdpJLK3AJlgcpOrjpJVTqya5lwg"  # আপনার বট টোকেন দিন
 DEFAULT_OWNER_ID = 8289191009                # আপনার টেলিগ্রাম আইডি
 DEFAULT_OWNER_USERNAME = "@SABBIRBD0"        # আপনার ইউজারনেম
 DEFAULT_BOT_USERNAME = "@SABBIR_OBF_BOT"     # বটের ইউজারনেম
