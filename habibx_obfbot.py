@@ -1,15 +1,19 @@
 import base64
 import os
 import json
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, MenuButtonWebApp, WebAppInfo
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, 
+    ReplyKeyboardMarkup, ReplyKeyboardRemove, MenuButtonWebApp, WebAppInfo
+)
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
     filters, ContextTypes, ConversationHandler
 )
 
 # ----------------- CONFIGURATION -----------------
-BOT_TOKEN = "8839587043:AAHLhKmyrdpJLK3AJlgcpOrjpJVTqya5lwg" # BotFather থেকে পাওয়া টোকেন দিন
-DEFAULT_OWNER_ID = 8289191009               # প্রাথমিক ওনার আইডি
+BOT_TOKEN = "8839587043:AAHLhKmyrdpJLK3AJlgcpOrjpJVTqya5lwg"  # BotFather থেকে প্রাপ্ত টোকেন দিন
+DEFAULT_OWNER_ID = 8289191009                # আপনার এডমিন আইডি
+OWNER_USERNAME = "@OWNER_HABIB_LEADER_1"    # আপনার টেলিগ্রাম ইউজারনেম
 
 # Conversation States
 (
@@ -20,9 +24,8 @@ DEFAULT_OWNER_ID = 8289191009               # প্রাথমিক ওনা
     WAITING_ADD_ADMIN,
     WAITING_REMOVE_ADMIN,
     WAITING_TRANSFER_OWNERSHIP,
-    WAITING_CUSTOM_HEADER,
-    WAITING_UPLOAD_FILE
-) = range(9)
+    WAITING_CUSTOM_HEADER
+) = range(8)
 
 DATA_FILE = "bot_data.json"
 
@@ -33,7 +36,7 @@ def load_data():
                 data = json.load(f)
                 if "owner" not in data: data["owner"] = DEFAULT_OWNER_ID
                 if "admins" not in data: data["admins"] = []
-                if "custom_header" not in data: data["custom_header"] = "<!-- Protected by HTML Obfuscator Bot | Owner: @your_username -->"
+                if "custom_header" not in data: data["custom_header"] = f"<!-- Encrypted by HTML Obfuscator Bot | Dev: {OWNER_USERNAME} -->"
                 return data
         except Exception:
             pass
@@ -43,7 +46,7 @@ def load_data():
         "users": [],
         "force_channel": "",
         "web_button": {"title": "", "url": ""},
-        "custom_header": "<!-- Protected by HTML Obfuscator Bot | Owner: @your_username -->"
+        "custom_header": f"<!-- Encrypted by HTML Obfuscator Bot | Dev: {OWNER_USERNAME} -->"
     }
 
 def save_data(data):
@@ -60,10 +63,8 @@ def is_admin(user_id: int) -> bool:
     return is_owner(user_id) or (user_id in bot_data.get("admins", []))
 
 def heavy_obfuscate_html(html_code: str) -> str:
-    # এডমিন প্যানেলের কাস্টম ওয়াটারমার্ক/মেসেজ ফাইলের উপরে যোগ করা
     custom_header = bot_data.get("custom_header", "")
     full_code = f"{custom_header}\n{html_code}"
-    
     encoded = base64.b64encode(full_code.encode('utf-8')).decode('utf-8')
     return f"""<!DOCTYPE html>
 <html>
@@ -95,9 +96,11 @@ def heavy_obfuscate_html(html_code: str) -> str:
 </html>"""
 
 def get_main_keyboard(user_id: int):
-    # ইউজারের চ্যাটের নিচে স্থায়ী মেনু বাটন
+    # আপনার ৩ নম্বর স্ক্রিনশট অনুযায়ী কাস্টম বাটন লেআউট
     keyboard = [
-        ["📤 Upload File", "ℹ️ Help"]
+        ["🎬 URL TO VIDEO"],
+        ["🔐 OBFUSCATE HTML", "🌐 URL TO HTML"],
+        ["👑 OWNER & DEV", "⚡ VIP FEATURES & INFO"]
     ]
     if is_admin(user_id):
         keyboard.append(["⚙️ Admin Panel"])
@@ -115,6 +118,28 @@ async def check_force_join(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> 
         pass
     return False
 
+async def send_force_join_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    channel = bot_data.get("force_channel", "@FreeIncome_TechBD")
+    channel_clean = channel.replace('@', '')
+    keyboard = [
+        [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{channel_clean}")],
+        [InlineKeyboardButton("✅ Joined / Verify", callback_data="verify_join")]
+    ]
+    
+    msg_text = f"⚠️ **বট ব্যবহার করতে আপনাকে অবশ্যই আমাদের চ্যানেলে জয়েন করতে হবে:**\n{channel}"
+    
+    if update.message:
+        await update.message.reply_text(
+            msg_text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        await update.message.reply_text("🔒 চ্যানেল জয়েন না করা পর্যন্ত সকল মেনু লক থাকবে।", reply_markup=ReplyKeyboardRemove())
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(
+            msg_text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
 # ----------------- USER HANDLERS -----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -123,14 +148,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data(bot_data)
 
     if not await check_force_join(user_id, context):
-        channel = bot_data["force_channel"]
-        keyboard = [[InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{channel.replace('@','')}")]]
-        await update.message.reply_text(
-            f"⚠️ বট ব্যবহার করতে আপনাকে অবশ্যই আমাদের চ্যানেলে জয়েন করতে হবে:\n{channel}",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await send_force_join_msg(update, context)
         return
 
+    await send_welcome_message(update, context)
+
+async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     inline_kb = []
     web_btn = bot_data.get("web_button", {})
     if web_btn.get("title") and web_btn.get("url"):
@@ -138,12 +162,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = InlineKeyboardMarkup(inline_kb) if inline_kb else None
 
-    await update.message.reply_text(
-        "👋 **স্বাগতম!**\n\nনিচের **📤 Upload File** বাটনে ক্লিক করে ফাইল আপলোড করুন অথবা সরাসরি HTML কোড লিখে পাঠান।",
-        reply_markup=get_main_keyboard(user_id)
-    )
+    welcome_text = "👋 **স্বাগতম HB HTML OBFUSCATOR বটের মধ্যে!**\n\nনিচের **🔐 OBFUSCATE HTML** বাটনে ক্লিক করে ফাইল পাঠান অথবা যেকোনো `.html` ফাইল আপলোড করুন।"
+
+    if update.callback_query:
+        await update.callback_query.message.reply_text(welcome_text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
+
     if reply_markup:
-        await update.message.reply_text("🔗 **ওয়েবসাইট ওপেন করুন:**", reply_markup=reply_markup)
+        target = update.callback_query.message if update.callback_query else update.message
+        await target.reply_text("🔗 **ওয়েবসাইট ওপেন করুন:**", reply_markup=reply_markup)
 
 # ----------------- ADMIN PANEL HANDLERS -----------------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -168,11 +196,21 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = "OWNER" if is_owner(user_id) else "ADMIN"
     await update.message.reply_text(f"⚙️ **ADMIN CONTROL PANEL** ({role})", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
+
+    if query.data == "verify_join":
+        if await check_force_join(user_id, context):
+            await query.message.delete()
+            await query.message.reply_text("✅ জয়েন ভেরিফিকেশন সফল হয়েছে!")
+            await send_welcome_message(update, context)
+        else:
+            await query.answer("❌ আপনি এখনো চ্যানেলে জয়েন করেননি! আগে জয়েন করুন।", show_alert=True)
+        return
+
     if not is_admin(user_id):
         return
 
@@ -194,7 +232,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_BROADCAST
 
     elif query.data == "admin_force":
-        await query.edit_message_text("📢 চ্যানেলের ইউজারনেম পাঠান (যেমন: `@MyChannel`):")
+        await query.edit_message_text("📢 চ্যানেলের ইউজারনেম পাঠান (যেমন: `@FreeIncome_TechBD`):")
         return WAITING_FORCE_CHANNEL
 
     elif query.data == "admin_add_button":
@@ -203,7 +241,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "admin_set_header":
         current = bot_data.get("custom_header", "None")
-        await query.edit_message_text(f"✏️ **বর্তমান ওয়াটারমার্ক/মেসেজ:**\n`{current}`\n\nনতুন মেসেজটি লিখে পাঠান (এটি কোডের ভেতর যুক্ত হবে):", parse_mode="Markdown")
+        await query.edit_message_text(f"✏️ **বর্তমান ওয়াটারমার্ক/মেসেজ:**\n`{current}`\n\nনতুন মেসেজটি লিখে পাঠান:", parse_mode="Markdown")
         return WAITING_CUSTOM_HEADER
 
     if is_owner(user_id):
@@ -228,7 +266,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("⚠️ **সতর্কতা:** নতুন ওনারের **Telegram ID** লিখে পাঠান:")
             return WAITING_TRANSFER_OWNERSHIP
 
-# --- Conversation Process Steps ---
+# --- Conversation Steps ---
 async def process_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message.text
     users = bot_data.get("users", [])
@@ -324,23 +362,39 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ----------------- OBFUSCATION CORE LOGIC -----------------
-async def execute_obfuscation(update: Update, file_path: str, file_name: str):
+async def execute_obfuscation(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: str, original_filename: str):
     msg = await update.message.reply_text("⏳ **Processing & Encrypting code... Please wait.**")
     
     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         code = f.read()
 
     obfuscated_code = heavy_obfuscate_html(code)
-    output_filename = f"protected_{file_name}"
+    output_filename = f"HABIB_BHAI_Encrypted_{original_filename}"
 
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(obfuscated_code)
 
     await msg.delete()
+
+    # স্ক্রিনশট ২ অনুযায়ী কাস্টম ডেসক্রিপশন মেসেজ ফরম্যাট
+    bot_username = (await context.bot.get_me()).username
+    caption_text = (
+        f"👑 ════════════════════ 👑\n"
+        f"👑 **হাবিব ভাই আনব্রেকবল ইনক্রিপ্টেড (V2.0)** 👑\n"
+        f"👑 ════════════════════ 👑\n\n"
+        f"📁 **ফাইল নাম:** {output_filename}\n"
+        f"🔒 **সাইফার:** 😈🔥 Polymorphic Chaos Stream (Unbreakable)\n"
+        f"🚫 **প্রোটেকশন:** Anti-Hook + Anti-Debugger + CSS/JS Zero-Leak\n"
+        f"🌐 **ব্রাউজার রানিং:** 100% Native Execution\n"
+        f"⚡ **সিকিউরিটি:** Military-Grade Lock\n\n"
+        f"🤖 **Bot:** @{bot_username} | 👑 **Dev:** {OWNER_USERNAME}"
+    )
+
     await update.message.reply_document(
         document=open(output_filename, "rb"),
         filename=output_filename,
-        caption="🔐 **আপনার ফাইলটি সফলভাবে Obfuscated (এনক্রিপ্ট) করা হয়েছে!**"
+        caption=caption_text,
+        parse_mode="Markdown"
     )
 
     if os.path.exists(file_path): os.remove(file_path)
@@ -349,7 +403,7 @@ async def execute_obfuscation(update: Update, file_path: str, file_name: str):
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not await check_force_join(user_id, context):
-        await start(update, context)
+        await send_force_join_msg(update, context)
         return
 
     doc = update.message.document
@@ -360,39 +414,49 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await doc.get_file()
     input_path = "temp_input.html"
     await file.download_to_drive(input_path)
-    await execute_obfuscation(update, input_path, doc.file_name)
+    await execute_obfuscation(update, context, input_path, doc.file_name)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
 
-    if text == "⚙️ Admin Panel":
+    if not await check_force_join(user_id, context):
+        await send_force_join_msg(update, context)
+        return
+
+    # স্ক্রিনশট ৩ এর মেনু বাটনগুলোর রেসপন্স
+    if text == "🔐 OBFUSCATE HTML":
+        await update.message.reply_text("📂 **আপনার `.html` ফাইলটি সেন্ড করুন বা কোড টি সরাসরি পেস্ট করুন:**")
+        return
+    elif text == "🎬 URL TO VIDEO":
+        await update.message.reply_text("🎥 **টিউটোরিয়াল ভিডিও লিঙ্ক:**\nhttps://youtube.com/@FreeIncome_TechBD")
+        return
+    elif text == "🌐 URL TO HTML":
+        await update.message.reply_text("🌐 ওয়েবসাইট URL থেকে এইচটিএমএল ফেচ করার সুবিধা শীঘ্রই আসছে!")
+        return
+    elif text == "👑 OWNER & DEV":
+        await update.message.reply_text(f"👑 **Owner & Developer Contact:**\n{OWNER_USERNAME}")
+        return
+    elif text == "⚡ VIP FEATURES & INFO":
+        await update.message.reply_text("⚡ **VIP Features:**\n- Polymorphic Chaos Stream\n- Zero-Leak Anti-Debugger\n- Anti-Hook Protection")
+        return
+    elif text == "⚙️ Admin Panel":
         await admin_panel(update, context)
         return
-    elif text == "ℹ️ Help":
-        await update.message.reply_text("💡 আমাকে যেকোনো HTML ফাইল আপলোড করুন অথবা কোড পাঠান, এটি এনক্রিপ্ট হয়ে ফাইল আকারে ডাউনলোড হবে।")
-        return
-    elif text == "📤 Upload File":
-        await update.message.reply_text("📂 **আপনার `.html` ফাইলটি এখানে সেন্ড করুন:**")
-        return
 
-    if not await check_force_join(user_id, context):
-        await start(update, context)
-        return
-
-    # টেকস্ট কোড সরাসরি পাঠানো হলে
+    # সরাসরি কোড পেস্ট করলে
     input_path = "temp_input.html"
     with open(input_path, "w", encoding="utf-8") as f:
         f.write(text)
 
-    await execute_obfuscation(update, input_path, "index.html")
+    await execute_obfuscation(update, context, input_path, "code.html")
 
 # ----------------- MAIN EXECUTION -----------------
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_callback)],
+        entry_points=[CallbackQueryHandler(callback_handler)],
         states={
             WAITING_BROADCAST: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_broadcast)],
             WAITING_FORCE_CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_force_channel)],
@@ -409,8 +473,9 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
 
-    print("Bot is running perfectly...")
+    print("Bot is running with full exact configuration...")
     app.run_polling()
