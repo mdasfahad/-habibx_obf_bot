@@ -79,7 +79,7 @@ def heavy_obfuscate_html(html_code: str) -> str:
     # Base64 encode the original code
     encoded = base64.b64encode(html_code.encode('utf-8')).decode('utf-8')
 
-    # হেডার ওয়াটারমার্ক (স্ক্রিনশট ৩ এর মত)
+    # হেডার ওয়াটারমার্ক
     header_art = f"""<!--
 //========================================================================
 //  {custom_hdr}
@@ -91,7 +91,7 @@ def heavy_obfuscate_html(html_code: str) -> str:
 -->
 """
 
-    # মূল ফাইল স্ট্রাকচার (স্ক্রিনশট ৩ ও ৪ এর মত)
+    # মূল ফাইল স্ট্রাকচার
     obfuscated_template = f"""{header_art}
 <!DOCTYPE html>
 <!-- CIPHER_SIGNATURE: 😈🔥💀❌%=%+=-&398RMπr🔥Jkhj1CX2πk🤬b7gM^MsK😈bDoqSae3kx3RZπPquc😈ddn8edL7c3Je5😈emraSWzA6llRBπgdyrr1Jr2oWAevRkt62Xe÷🤬Wwv^bSEq£1uS🔥sNQMq3EgQXh -->
@@ -174,7 +174,8 @@ def get_admin_keyboard(user_id: int):
     keyboard = [
         ["📢 Broadcast Msg", "🔗 Set Force Channel"],
         ["❌ Remove Force Channel", "🤖 Set Bot Username"],
-        ["👤 Set Owner Username", "✏️ Set Watermark"],
+        ["🗑️ Remove Bot Username", "👤 Set Owner Username"],
+        ["🗑️ Remove Owner Username", "✏️ Set Watermark"],
         ["📊 User Stats"]
     ]
     if is_owner(user_id):
@@ -200,7 +201,6 @@ async def execute_obfuscation(update: Update, context: ContextTypes.DEFAULT_TYPE
     owner_user = bot_data.get("owner_username", DEFAULT_OWNER_USERNAME)
     bot_user = bot_data.get("bot_username", DEFAULT_BOT_USERNAME)
 
-    # স্ক্রিনশট ১ এর মত মেসেজ
     processing_msg = (
         f"👑 ════════════════════ 👑\n"
         f"🔐 **হাবিব ভাই আনব্রেকএবল এনক্রিপশন চলছে...**\n"
@@ -217,7 +217,6 @@ async def execute_obfuscation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await msg.delete()
 
-    # স্ক্রিনশট ২ এর মত হুবহু কাস্টম ক্যাপশন ফরম্যাট
     caption_text = (
         f"👑 ════════════════════ 👑\n"
         f"🛡️ **সাব্বির ভাই আনব্রেকএবল ইনক্রিপ্টেড (V2.0)**\n"
@@ -291,13 +290,16 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
 
     if text == "🔐 OBFUSCATE HTML":
         await update.message.reply_text("📂 **আপনার HTML ফাইলটি সেন্ড বা ফরওয়ার্ড করুন অথবা সরাসরি কোড পেস্ট করুন:**")
+        return ConversationHandler.END
     elif text == "🌐 URL TO HTML":
         await update.message.reply_text("🌐 **যে ওয়েবসাইটের HTML অবফাস্কেট করতে চান সেটির URL দিন (যেমন: https://google.com):**")
         return WAITING_URL_TO_HTML
     elif text == "🎬 URL TO VIDEO":
         await update.message.reply_text(f"🎥 **অফিশিয়াল ভিডিও টিউটোরিয়াল:**\nভিডিও ও আপডেটের জন্য আমাদের ডেভেলপার ({owner_user}) এর সাথে যোগাযোগ রাখুন।")
+        return ConversationHandler.END
     elif text == "👑 OWNER & DEV":
         await update.message.reply_text(f"👑 **Developer Username:** {owner_user}\n🤖 **Bot Username:** {bot_data.get('bot_username')}")
+        return ConversationHandler.END
     elif text == "⚡ VIP FEATURES & INFO":
         await update.message.reply_text(
             "⚡ **VIP Security Shields Enabled:**\n"
@@ -305,13 +307,16 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
             "- Anti-Debugger Loop System\n"
             "- Dynamic Base64 Execution Engine"
         )
+        return ConversationHandler.END
     elif text == "⚙️ Admin Panel":
         if is_admin(user_id):
             await update.message.reply_text("⚙️ **ADMIN CONTROL PANEL**", reply_markup=get_admin_keyboard(user_id))
         else:
             await update.message.reply_text("❌ আপনি এডমিন নন!")
+        return ConversationHandler.END
     elif text == "🔙 Back to Main Menu":
         await update.message.reply_text("🔙 মূল মেনুতে ফিরে যাওয়া হয়েছে।", reply_markup=get_main_keyboard(user_id))
+        return ConversationHandler.END
     
     # Admin Keyboards
     elif is_admin(user_id) and text == "📊 User Stats":
@@ -325,6 +330,7 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
             f"👥 **Total Users:** {len(bot_data.get('users', []))}",
             parse_mode="Markdown"
         )
+        return ConversationHandler.END
     elif is_admin(user_id) and text == "📢 Broadcast Msg":
         await update.message.reply_text("📝 ব্রডকাস্ট মেসেজটি লিখে পাঠান:")
         return WAITING_BROADCAST
@@ -335,12 +341,23 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
         bot_data["force_channel"] = ""
         save_data(bot_data)
         await update.message.reply_text("✅ ফোর্স চ্যানেল সম্পূর্ণ তুলে নেওয়া হয়েছে!")
+        return ConversationHandler.END
     elif is_admin(user_id) and text == "🤖 Set Bot Username":
         await update.message.reply_text("🤖 বটের নতুন ইউজারনেম লিখে দিন (যেমন: `@SABBIR_OBF_BOT`):")
         return WAITING_BOT_USERNAME
+    elif is_admin(user_id) and text == "🗑️ Remove Bot Username":
+        bot_data["bot_username"] = "None"
+        save_data(bot_data)
+        await update.message.reply_text("✅ বটের ইউজারনেম রিমুভ করা হয়েছে!")
+        return ConversationHandler.END
     elif is_admin(user_id) and text == "👤 Set Owner Username":
         await update.message.reply_text("👤 ওনারের নতুন ইউজারনেম লিখে দিন (যেমন: `@SABBIRBD0`):")
         return WAITING_OWNER_USERNAME
+    elif is_admin(user_id) and text == "🗑️ Remove Owner Username":
+        bot_data["owner_username"] = "None"
+        save_data(bot_data)
+        await update.message.reply_text("✅ ওনারের ইউজারনেম রিমুভ করা হয়েছে!")
+        return ConversationHandler.END
     elif is_admin(user_id) and text == "✏️ Set Watermark":
         await update.message.reply_text("✏️ নতুন কাস্টম হেডার/ওয়াটারমার্ক লিখে পাঠান:")
         return WAITING_CUSTOM_HEADER
@@ -354,9 +371,9 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("⚠️ নতুন ওনারের **Telegram ID** দিন:")
         return WAITING_TRANSFER_OWNERSHIP
     else:
-        # ফাইল না দিয়ে সরাসরি টেক্সট বা কোড পেস্ট করলে
         if not text.startswith("/"):
             await execute_obfuscation(update, context, text, "index.html")
+        return ConversationHandler.END
 
 # ----------------- STATE INPUT PROCESSORS -----------------
 async def proc_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -397,7 +414,7 @@ async def proc_bot_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not u.startswith('@'): u = f"@{u}"
     bot_data["bot_username"] = u
     save_data(bot_data)
-    await update.message.reply_text(f"✅ বটের ইউজারনেম সেভ হয়েছে: {u}")
+    await update.message.reply_text(f"✅ বটের ইউজারনেম সেভ হয়েছে: {u}", reply_markup=get_admin_keyboard(update.effective_user.id))
     return ConversationHandler.END
 
 async def proc_owner_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -405,7 +422,7 @@ async def proc_owner_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not u.startswith('@'): u = f"@{u}"
     bot_data["owner_username"] = u
     save_data(bot_data)
-    await update.message.reply_text(f"✅ ওনারের ইউজারনেম সেভ হয়েছে: {u}")
+    await update.message.reply_text(f"✅ ওনারের ইউজারনেম সেভ হয়েছে: {u}", reply_markup=get_admin_keyboard(update.effective_user.id))
     return ConversationHandler.END
 
 async def proc_custom_hdr(update: Update, context: ContextTypes.DEFAULT_TYPE):
