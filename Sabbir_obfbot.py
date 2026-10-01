@@ -1,20 +1,19 @@
 import base64
 import os
 import json
-import time
 import urllib.request
 from datetime import datetime
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler
 )
 
 # ----------------- CONFIGURATION -----------------
-BOT_TOKEN = "8839587043:AAHLhKmyrdpJLK3AJlgcpOrjpJVTqya5lwg"  # এখানে আপনার টেলিগ্রাম বট টোকেন দিন
+BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"  # আপনার বট টোকেন দিন
 DEFAULT_OWNER_ID = 8289191009                # আপনার টেলিগ্রাম আইডি
-DEFAULT_OWNER_USERNAME = "@habibx_obf_bot"        # আপনার ইউজারনেম
-DEFAULT_BOT_USERNAME = "@sabbir2850"     # বটের ইউজারনেম
+DEFAULT_OWNER_USERNAME = "@SABBIRBD0"        # আপনার ইউজারনেম
+DEFAULT_BOT_USERNAME = "@SABBIR_OBF_BOT"     # বটের ইউজারনেম
 
 # Conversation States
 (
@@ -76,10 +75,8 @@ def heavy_obfuscate_html(html_code: str) -> str:
     custom_hdr = bot_data.get("custom_header", "🔒 SABBIR UNBREAKABLE ULTRA CIPHER V2.0")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Base64 encode the original code
     encoded = base64.b64encode(html_code.encode('utf-8')).decode('utf-8')
 
-    # হেডার ওয়াটারমার্ক
     header_art = f"""<!--
 //========================================================================
 //  {custom_hdr}
@@ -91,7 +88,6 @@ def heavy_obfuscate_html(html_code: str) -> str:
 -->
 """
 
-    # মূল ফাইল স্ট্রাকচার
     obfuscated_template = f"""{header_art}
 <!DOCTYPE html>
 <!-- CIPHER_SIGNATURE: 😈🔥💀❌%=%+=-&398RMπr🔥Jkhj1CX2πk🤬b7gM^MsK😈bDoqSae3kx3RZπPquc😈ddn8edL7c3Je5😈emraSWzA6llRBπgdyrr1Jr2oWAevRkt62Xe÷🤬Wwv^bSEq£1uS🔥sNQMq3EgQXh -->
@@ -111,7 +107,6 @@ def heavy_obfuscate_html(html_code: str) -> str:
 (function() {{
     'use strict';
 
-    // 🔴 1. ANTI-DEVTOOLS & SHORTCUT SHIELD
     window.addEventListener('contextmenu', function(e) {{ e.preventDefault(); e.stopPropagation(); return false; }}, true);
     window.addEventListener('keydown', function(e) {{
         if (e.key === 'F12' || 
@@ -126,7 +121,6 @@ def heavy_obfuscate_html(html_code: str) -> str:
 
     const _fakeMsg = "😈🔥💀❌ [কোড চোর সনাক্ত হয়েছে! এই কোড এনক্রিপ্ট করেছে: {bot_user} | ওনার: {owner_user}] 🔒";
 
-    // 🔴 2. ANTI-DEBUGGER TIMING SHIELD
     let _t0 = Date.now();
     function _verifyIntegrity() {{
         let _t1 = Date.now();
@@ -138,7 +132,6 @@ def heavy_obfuscate_html(html_code: str) -> str:
     }}
     setInterval(_verifyIntegrity, 500);
 
-    // 🔴 3. DYNAMIC DECODER & RUNTIME EXECUTION ({bot_user} | Dev: {owner_user})
     window.onload = function() {{
         try {{
             var _raw = "{encoded}";
@@ -284,10 +277,11 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
 
     if not await check_force_join(user_id, context):
         await update.message.reply_text("❌ আগে চ্যানেলে জয়েন করুন!")
-        return
+        return ConversationHandler.END
 
     owner_user = bot_data.get("owner_username", DEFAULT_OWNER_USERNAME)
 
+    # ปุ่มคำสั่งหลัก
     if text == "🔐 OBFUSCATE HTML":
         await update.message.reply_text("📂 **আপনার HTML ফাইলটি সেন্ড বা ফরওয়ার্ড করুন অথবা সরাসরি কোড পেস্ট করুন:**")
         return ConversationHandler.END
@@ -318,7 +312,7 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("🔙 মূল মেনুতে ফিরে যাওয়া হয়েছে।", reply_markup=get_main_keyboard(user_id))
         return ConversationHandler.END
     
-    # Admin Keyboards
+    # Admin Controls
     elif is_admin(user_id) and text == "📊 User Stats":
         await update.message.reply_text(
             f"📊 **বট স্ট্যাটাস:**\n\n"
@@ -370,9 +364,13 @@ async def handle_main_menu_clicks(update: Update, context: ContextTypes.DEFAULT_
     elif is_owner(user_id) and text == "👑 Transfer Owner":
         await update.message.reply_text("⚠️ নতুন ওনারের **Telegram ID** দিন:")
         return WAITING_TRANSFER_OWNERSHIP
+
+    # যদি কেবল HTML বা কোড পেস্ট করা হয় (যেখানে <html বা <script বা একাধিক লাইন থাকবে)
+    elif "<html" in text.lower() or "<script" in text.lower() or "<body" in text.lower() or "\n" in text:
+        await execute_obfuscation(update, context, text, "index.html")
+        return ConversationHandler.END
     else:
-        if not text.startswith("/"):
-            await execute_obfuscation(update, context, text, "index.html")
+        await update.message.reply_text("⚠️ অনুগ্রহ করে মেনু থেকে অপশন সিলেক্ট করুন অথবা সঠিক HTML কোড পাঠ পাঠান।")
         return ConversationHandler.END
 
 # ----------------- STATE INPUT PROCESSORS -----------------
@@ -414,7 +412,7 @@ async def proc_bot_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not u.startswith('@'): u = f"@{u}"
     bot_data["bot_username"] = u
     save_data(bot_data)
-    await update.message.reply_text(f"✅ বটের ইউজারনেম সেভ হয়েছে: {u}", reply_markup=get_admin_keyboard(update.effective_user.id))
+    await update.message.reply_text(f"✅ বটের ইউজারনেম সেভ হয়েছে: `{u}`", parse_mode="Markdown")
     return ConversationHandler.END
 
 async def proc_owner_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -422,7 +420,7 @@ async def proc_owner_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not u.startswith('@'): u = f"@{u}"
     bot_data["owner_username"] = u
     save_data(bot_data)
-    await update.message.reply_text(f"✅ ওনারের ইউজারনেম সেভ হয়েছে: {u}", reply_markup=get_admin_keyboard(update.effective_user.id))
+    await update.message.reply_text(f"✅ ওনারের ইউজারনেম সেভ হয়েছে: `{u}`", parse_mode="Markdown")
     return ConversationHandler.END
 
 async def proc_custom_hdr(update: Update, context: ContextTypes.DEFAULT_TYPE):
