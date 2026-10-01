@@ -19,26 +19,31 @@ DEFAULT_OWNER_ID = 8289191009               # প্রাথমিক ওনা
     WAITING_BUTTON_URL,
     WAITING_ADD_ADMIN,
     WAITING_REMOVE_ADMIN,
-    WAITING_TRANSFER_OWNERSHIP
-) = range(7)
+    WAITING_TRANSFER_OWNERSHIP,
+    WAITING_CUSTOM_HEADER,
+    WAITING_UPLOAD_FILE
+) = range(9)
 
 DATA_FILE = "bot_data.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if "owner" not in data:
-                data["owner"] = DEFAULT_OWNER_ID
-            if "admins" not in data:
-                data["admins"] = []
-            return data
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if "owner" not in data: data["owner"] = DEFAULT_OWNER_ID
+                if "admins" not in data: data["admins"] = []
+                if "custom_header" not in data: data["custom_header"] = "<!-- Protected by HTML Obfuscator Bot | Owner: @your_username -->"
+                return data
+        except Exception:
+            pass
     return {
         "owner": DEFAULT_OWNER_ID,
         "admins": [],
         "users": [],
         "force_channel": "",
-        "web_button": {"title": "", "url": ""}
+        "web_button": {"title": "", "url": ""},
+        "custom_header": "<!-- Protected by HTML Obfuscator Bot | Owner: @your_username -->"
     }
 
 def save_data(data):
@@ -55,7 +60,11 @@ def is_admin(user_id: int) -> bool:
     return is_owner(user_id) or (user_id in bot_data.get("admins", []))
 
 def heavy_obfuscate_html(html_code: str) -> str:
-    encoded = base64.b64encode(html_code.encode('utf-8')).decode('utf-8')
+    # এডমিন প্যানেলের কাস্টম ওয়াটারমার্ক/মেসেজ ফাইলের উপরে যোগ করা
+    custom_header = bot_data.get("custom_header", "")
+    full_code = f"{custom_header}\n{html_code}"
+    
+    encoded = base64.b64encode(full_code.encode('utf-8')).decode('utf-8')
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -81,15 +90,17 @@ def heavy_obfuscate_html(html_code: str) -> str:
 </script>
 </head>
 <body>
-<noscript>JavaScript required.</noscript>
+<noscript>JavaScript required to view this protected page.</noscript>
 </body>
 </html>"""
 
-def get_main_keyboard():
+def get_main_keyboard(user_id: int):
+    # ইউজারের চ্যাটের নিচে স্থায়ী মেনু বাটন
     keyboard = [
-        ["🔐 Obfuscate HTML", "ℹ️ Help"],
-        ["⚙️ Admin Panel"]
+        ["📤 Upload File", "ℹ️ Help"]
     ]
+    if is_admin(user_id):
+        keyboard.append(["⚙️ Admin Panel"])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def check_force_join(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -128,8 +139,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(inline_kb) if inline_kb else None
 
     await update.message.reply_text(
-        "👋 **স্বাগতম!**\nআমাকে কোনো `.html` ফাইল অথবা কোড লিখে পাঠান, আমি সেটা এনক্রিপ্ট করে নিরাপদ ফাইল বানিয়ে ফেরত দেব।",
-        reply_markup=get_main_keyboard()
+        "👋 **স্বাগতম!**\n\nনিচের **📤 Upload File** বাটনে ক্লিক করে ফাইল আপলোড করুন অথবা সরাসরি HTML কোড লিখে পাঠান।",
+        reply_markup=get_main_keyboard(user_id)
     )
     if reply_markup:
         await update.message.reply_text("🔗 **ওয়েবসাইট ওপেন করুন:**", reply_markup=reply_markup)
@@ -145,10 +156,10 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📢 Broadcast Message", callback_data="admin_broadcast")],
         [InlineKeyboardButton("🔗 Set Force Channel", callback_data="admin_force")],
         [InlineKeyboardButton("🌐 Add Open Web Button", callback_data="admin_add_button")],
+        [InlineKeyboardButton("✏️ Set Code Watermark/Msg", callback_data="admin_set_header")],
         [InlineKeyboardButton("📊 User Stats", callback_data="admin_stats")]
     ]
 
-    # শুধুমাত্র Owner দেখতে পাবেন এমন অপশন
     if is_owner(user_id):
         keyboard.append([InlineKeyboardButton("➕ Add Admin", callback_data="admin_add_admin"),
                          InlineKeyboardButton("➖ Remove Admin", callback_data="admin_remove_admin")])
@@ -190,7 +201,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔘 বাটনের নাম (Title) লিখে পাঠান (যেমন: `Open Website`):")
         return WAITING_BUTTON_TITLE
 
-    # ওনার সংক্রান্ত অপশনসমূহ
+    elif query.data == "admin_set_header":
+        current = bot_data.get("custom_header", "None")
+        await query.edit_message_text(f"✏️ **বর্তমান ওয়াটারমার্ক/মেসেজ:**\n`{current}`\n\nনতুন মেসেজটি লিখে পাঠান (এটি কোডের ভেতর যুক্ত হবে):", parse_mode="Markdown")
+        return WAITING_CUSTOM_HEADER
+
     if is_owner(user_id):
         if query.data == "admin_add_admin":
             await query.edit_message_text("➕ নতুন এডমিনের **Telegram ID (Numerics)** লিখে পাঠান:")
@@ -210,10 +225,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return WAITING_REMOVE_ADMIN
 
         elif query.data == "admin_transfer_owner":
-            await query.edit_message_text("⚠️ **সতর্কতা:** নতুন ওনারের **Telegram ID** লিখে পাঠান। মালিকানা হস্তান্তর হলে আপনি ওনার থেকে এডমিন হয়ে যাবেন।")
+            await query.edit_message_text("⚠️ **সতর্কতা:** নতুন ওনারের **Telegram ID** লিখে পাঠান:")
             return WAITING_TRANSFER_OWNERSHIP
 
-# --- Conversation Steps ---
+# --- Conversation Process Steps ---
 async def process_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message.text
     users = bot_data.get("users", [])
@@ -231,7 +246,7 @@ async def process_force_channel(update: Update, context: ContextTypes.DEFAULT_TY
     channel = update.message.text.strip()
     bot_data["force_channel"] = channel
     save_data(bot_data)
-    await update.message.reply_text(f"✅ ফোর্স চ্যানেল সেটিং আপডেট হয়েছে: {channel}")
+    await update.message.reply_text(f"✅ ফোর্স চ্যানেল আপডেট হয়েছে: {channel}")
     return ConversationHandler.END
 
 async def process_button_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -256,6 +271,13 @@ async def process_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(f"✅ বাটন যোগ করা হয়েছে!\n\n**Name:** {title}\n**URL:** {url}")
     return ConversationHandler.END
 
+async def process_custom_header(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    header = update.message.text.strip()
+    bot_data["custom_header"] = header
+    save_data(bot_data)
+    await update.message.reply_text(f"✅ কাস্টম ওয়াটারমার্ক সেট হয়েছে:\n`{header}`", parse_mode="Markdown")
+    return ConversationHandler.END
+
 async def process_add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         new_admin = int(update.message.text.strip())
@@ -264,9 +286,9 @@ async def process_add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             bot_data["admins"].append(new_admin)
             save_data(bot_data)
-            await update.message.reply_text(f"✅ `{new_admin}` সফলভাবে নতুন এডমিন হিসেবে যুক্ত হয়েছে।", parse_mode="Markdown")
+            await update.message.reply_text(f"✅ `{new_admin}` সফলভাবে নতুন এডমিন যুক্ত হয়েছে।", parse_mode="Markdown")
     except ValueError:
-        await update.message.reply_text("❌ ভুল আইডি ফরম্যাট! শুধুমাত্র সংখ্যা (Numeric ID) ব্যবহার করুন।")
+        await update.message.reply_text("❌ ভুল আইডি ফরম্যাট!")
     return ConversationHandler.END
 
 async def process_remove_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -275,9 +297,9 @@ async def process_remove_admin(update: Update, context: ContextTypes.DEFAULT_TYP
         if rem_admin in bot_data["admins"]:
             bot_data["admins"].remove(rem_admin)
             save_data(bot_data)
-            await update.message.reply_text(f"✅ `{rem_admin}` আইডিটি এডমিন তালিকা থেকে রিমুভ করা হয়েছে।", parse_mode="Markdown")
+            await update.message.reply_text(f"✅ `{rem_admin}` আইডিটি রিমুভ করা হয়েছে।", parse_mode="Markdown")
         else:
-            await update.message.reply_text("❌ এই আইডি এডমিন তালিকায় পাওয়া যায়নি।")
+            await update.message.reply_text("❌ এই আইডি তালিকায় নেই।")
     except ValueError:
         await update.message.reply_text("❌ ভুল আইডি ফরম্যাট!")
     return ConversationHandler.END
@@ -289,19 +311,41 @@ async def process_transfer_ownership(update: Update, context: ContextTypes.DEFAU
         
         bot_data["owner"] = new_owner
         if old_owner not in bot_data["admins"]:
-            bot_data["admins"].append(old_owner) # পুরোনো ওনারকে এডমিন লিস্টে নামিয়ে নেওয়া
+            bot_data["admins"].append(old_owner)
             
         save_data(bot_data)
-        await update.message.reply_text(f"👑 **মালিকানা সফলভাবে হস্তান্তর করা হয়েছে!**\n\nনতুন ওনার আইডি: `{new_owner}`", parse_mode="Markdown")
+        await update.message.reply_text(f"👑 **মালিকানা হস্তান্তর সম্পন্ন!**\n\nনতুন ওনার: `{new_owner}`", parse_mode="Markdown")
     except ValueError:
         await update.message.reply_text("❌ ভুল আইডি ফরম্যাট!")
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ অপারেশন বাতিল করা হয়েছে।")
+    await update.message.reply_text("❌ কাজ বাতিল করা হয়েছে।")
     return ConversationHandler.END
 
-# ----------------- FILE & TEXT OBFUSCATION -----------------
+# ----------------- OBFUSCATION CORE LOGIC -----------------
+async def execute_obfuscation(update: Update, file_path: str, file_name: str):
+    msg = await update.message.reply_text("⏳ **Processing & Encrypting code... Please wait.**")
+    
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        code = f.read()
+
+    obfuscated_code = heavy_obfuscate_html(code)
+    output_filename = f"protected_{file_name}"
+
+    with open(output_filename, "w", encoding="utf-8") as f:
+        f.write(obfuscated_code)
+
+    await msg.delete()
+    await update.message.reply_document(
+        document=open(output_filename, "rb"),
+        filename=output_filename,
+        caption="🔐 **আপনার ফাইলটি সফলভাবে Obfuscated (এনক্রিপ্ট) করা হয়েছে!**"
+    )
+
+    if os.path.exists(file_path): os.remove(file_path)
+    if os.path.exists(output_filename): os.remove(output_filename)
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not await check_force_join(user_id, context):
@@ -309,59 +353,39 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     doc = update.message.document
-    if not doc.file_name.endswith(('.html', '.htm')):
-        await update.message.reply_text("❌ শুধুমাত্র .html অথবা .htm ফাইল গ্রহণ করা হয়।")
+    if not doc.file_name.endswith(('.html', '.htm', '.txt')):
+        await update.message.reply_text("❌ শুধুমাত্র `.html` অথবা `.htm` ফাইল সাপোর্ট করে।")
         return
 
     file = await doc.get_file()
     input_path = "temp_input.html"
     await file.download_to_drive(input_path)
-
-    with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
-        code = f.read()
-
-    obfuscated_code = heavy_obfuscate_html(code)
-    output_filename = f"protected_{doc.file_name}"
-
-    with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(obfuscated_code)
-
-    await update.message.reply_document(
-        document=open(output_filename, "rb"),
-        filename=output_filename,
-        caption="🔐 **আপনার HTML ফাইলটি এনক্রিপ্ট করা হয়েছে!**"
-    )
-
-    if os.path.exists(input_path): os.remove(input_path)
-    if os.path.exists(output_filename): os.remove(output_filename)
+    await execute_obfuscation(update, input_path, doc.file_name)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    user_id = update.effective_user.id
+
     if text == "⚙️ Admin Panel":
         await admin_panel(update, context)
         return
     elif text == "ℹ️ Help":
-        await update.message.reply_text("💡 আমাকে যেকোনো HTML ফাইল বা কোড পাঠালে তা এনক্রিপ্ট করে সুরক্ষিত করে দেওয়া হবে।")
+        await update.message.reply_text("💡 আমাকে যেকোনো HTML ফাইল আপলোড করুন অথবা কোড পাঠান, এটি এনক্রিপ্ট হয়ে ফাইল আকারে ডাউনলোড হবে।")
+        return
+    elif text == "📤 Upload File":
+        await update.message.reply_text("📂 **আপনার `.html` ফাইলটি এখানে সেন্ড করুন:**")
         return
 
-    user_id = update.effective_user.id
     if not await check_force_join(user_id, context):
         await start(update, context)
         return
 
-    obfuscated_code = heavy_obfuscate_html(text)
-    output_filename = "protected_code.html"
+    # টেকস্ট কোড সরাসরি পাঠানো হলে
+    input_path = "temp_input.html"
+    with open(input_path, "w", encoding="utf-8") as f:
+        f.write(text)
 
-    with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(obfuscated_code)
-
-    await update.message.reply_document(
-        document=open(output_filename, "rb"),
-        filename="protected_index.html",
-        caption="🔐 **আপনার দেওয়া কোডটি এনক্রিপ্ট করে ফাইল বানিয়ে দেওয়া হয়েছে।**"
-    )
-
-    if os.path.exists(output_filename): os.remove(output_filename)
+    await execute_obfuscation(update, input_path, "index.html")
 
 # ----------------- MAIN EXECUTION -----------------
 if __name__ == '__main__':
@@ -374,6 +398,7 @@ if __name__ == '__main__':
             WAITING_FORCE_CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_force_channel)],
             WAITING_BUTTON_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_button_title)],
             WAITING_BUTTON_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_button_url)],
+            WAITING_CUSTOM_HEADER: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_custom_header)],
             WAITING_ADD_ADMIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_add_admin)],
             WAITING_REMOVE_ADMIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_remove_admin)],
             WAITING_TRANSFER_OWNERSHIP: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_transfer_ownership)],
@@ -387,5 +412,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
 
-    print("Bot is running...")
+    print("Bot is running perfectly...")
     app.run_polling()
