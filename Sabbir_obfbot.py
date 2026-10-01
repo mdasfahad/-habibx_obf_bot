@@ -13,8 +13,8 @@ from telegram.ext import (
 # ----------------- CONFIGURATION -----------------
 BOT_TOKEN = "8839587043:AAHLhKmyrdpJLK3AJlgcpOrjpJVTqya5lwg"  # এখানে আপনার টেলিগ্রাম বট টোকেন দিন
 DEFAULT_OWNER_ID = 8289191009                # আপনার টেলিগ্রাম আইডি
-DEFAULT_OWNER_USERNAME = "@SABBIRBD0"        # আপনার ইউজারনেম
-DEFAULT_BOT_USERNAME = "@SABBIR_OBF_BOT"     # বটের ইউজারনেম
+DEFAULT_OWNER_USERNAME = "@habibx_obf_bot"        # আপনার ইউজারনেম
+DEFAULT_BOT_USERNAME = "@sabbir2850"     # বটের ইউজারনেম
 
 # Conversation States
 (
